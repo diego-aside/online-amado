@@ -1,0 +1,76 @@
+{
+  "meta": {
+    "source": "2026-09-10 네이버 플레이스 메뉴판 (2026-11-13 라이브 확인, place ID 1324158288)",
+    "disclaimer": "2026-09-10 메뉴판 기준, 변동 가능. 영업시간은 네이버·카카오 표기가 달라 가게에 직접 확인 필요",
+    "currency": "KRW",
+    "facts": {
+      "address": "서울 동작구 흑석로 10, 1층 2호",
+      "hours": "네이버: 월~목 18:00~02:00·금~일 휴무 / 카카오: 월~목·금 16:30~01:00·토일 휴무 — 표기 상이, 전화 확인 필요",
+      "phone": "070-4123-7776 (네이버 플레이스 확인)",
+      "instagram": "@sangdo_amado (게시물 40개, 팔로워 82명)",
+      "basic_snack": "오뎅 + 튀긴 스파게티면",
+      "service": "알새우칩·어묵·콘치즈 등 사장님 서비스",
+      "name_origin": "Amado = 스페인어로 '애정하는' + '나 오늘 아마도 아마도에 갈 거야' 언어유희"
+    }
+  },
+  "categories": [
+    {
+      "id": "main",
+      "name": "메인",
+      "kind": "food",
+      "items": [
+        { "id": "sukju", "name": "숙주 소 불고기 뽀끔밥", "price": 22000, "note": "공기밥 추가 +4,000" },
+        { "id": "redpork", "name": "아마도 빨간 돼지 불고기 뽀끔밥", "price": 22000, "note": "공기밥 추가 +4,000" },
+        { "id": "kkokkotang", "name": "꼬꼬탕", "price": 22000, "note": "우동사리 +3,000" },
+        { "id": "cheese-sundang", "name": "치즈순딩떡뽀끼", "price": 21000 },
+        { "id": "haemul-udon", "name": "해물우동뽀끼", "price": 18000 },
+        { "id": "sundubu", "name": "순두부찌개", "price": 21000 },
+        { "id": "ganpung", "name": "아마도 깐풍치킨", "price": 21000 },
+        { "id": "jeyuk", "name": "제육뽀끔", "price": 17000 },
+        { "id": "cheesebuldak", "name": "치즈불닭", "price": 17000 },
+        { "id": "ddongggojip", "name": "똥꼬집뽀끔", "price": 17000 },
+        { "id": "dubukimchi", "name": "두부김치", "price": 16000 },
+        { "id": "muktae", "name": "먹태", "price": 17000 },
+        { "id": "sowingpo", "name": "쏘.윙.포", "price": 19000 },
+        { "id": "rose", "name": "로제떡볶이", "price": 16000 },
+        { "id": "creamudon", "name": "크림우동", "price": 16000 }
+      ]
+    },
+    {
+      "id": "side",
+      "name": "사이드",
+      "kind": "food",
+      "items": [
+        { "id": "potatocheese", "name": "감자채치즈전", "price": 11000 },
+        { "id": "corn", "name": "달달 옥수수전", "price": 9000, "signature": true },
+        { "id": "eggsteam", "name": "계란찜", "price": 6000 },
+        { "id": "fries", "name": "감자튀김", "price": 6000 },
+        { "id": "ramyeon", "name": "콩나물라면", "price": 6000 },
+        { "id": "bingsu", "name": "황도빙수", "price": 13000 },
+        { "id": "rice", "name": "공기밥", "price": 1500 }
+      ]
+    },
+    {
+      "id": "drink",
+      "name": "드링크",
+      "kind": "drink",
+      "items": [
+        { "id": "draft", "name": "생맥주 테라 500", "price": 6000, "alcohol": true },
+        { "id": "bottle", "name": "병맥주(테라·카스·켈리)", "price": 6000, "alcohol": true },
+        { "id": "soju", "name": "소주(참이슬·처음처럼·새로·진로)", "price": 5000, "alcohol": true },
+        { "id": "saero-omija", "name": "새로오미자", "price": 5500, "alcohol": true },
+        { "id": "maehwa", "name": "매화수", "price": 6500, "alcohol": true },
+        { "id": "cheongha", "name": "빛청하", "price": 7500, "alcohol": true },
+        { "id": "highball", "name": "산토리 하이볼", "price": 8000, "alcohol": true },
+        { "id": "soda", "name": "콜라·사이다·제로콜라", "price": 2500, "alcohol": false },
+        { "id": "galppa", "name": "갈빠", "price": 6500, "alcohol": false },
+        { "id": "icetea", "name": "아이스티", "price": 5000, "alcohol": false }
+      ]
+    }
+  ],
+  "service": [
+    { "id": "shrimpchip", "name": "알새우칩 (서비스)", "price": 0, "note": "사장님 직접 튀긴 알새우칩" },
+    { "id": "eomuk", "name": "어묵 (서비스)", "price": 0, "note": "사장님 서비스" },
+    { "id": "corncheese", "name": "콘치즈 (서비스)", "price": 0, "note": "사장님 서비스" }
+  ]
+}

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>온라인 아마도 — Amado</title>
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body data-device="desktop">
+<div id="stage">
+  <div id="scene" aria-label="3D 아마도 내부"></div>
+  <div id="labels"></div>
+  <div id="owner-bubble" hidden></div>
+</div>
+
+<header id="top">
+  <div class="brand"><span class="logo">Amado</span><small>온라인 아마도 · 중앙대 후문 요리주점</small></div>
+  <span id="net-badge" class="badge">연결 전</span>
+  <button id="btn-side" class="icon-btn" aria-label="패널 열기">☰</button>
+</header>
+
+<div id="hud-drunk" hidden>
+  <div class="dr-title">취기 <b id="dr-level">0</b>/5 <span id="dr-text">아직 멀쩡해요</span></div>
+  <div class="dr-bar"><i></i><i></i><i></i><i></i><i></i></div>
+  <div id="dr-cool" hidden></div>
+</div>
+
+<div id="hud-actions" hidden>
+  <button id="btn-sit" class="act">🪑 일어서기</button>
+  <button id="btn-cheers" class="act">🍻 건배</button>
+  <button id="btn-water" class="act">💧 물 마시기</button>
+  <button id="btn-wc" class="act">🚽 화장실 다녀오기</button>
+  <button id="btn-cam" class="act" aria-pressed="false">📷 카메라 OFF</button>
+  <button id="btn-mic" class="act" aria-pressed="false">🎤 마이크 OFF</button>
+  <button id="btn-grid" class="act">▦ 격자</button>
+</div>
+
+<section id="zoom" hidden aria-label="테이블 화상 격자">
+  <div id="zoom-grid"></div>
+  <div id="zoom-note"></div>
+</section>
+
+<aside id="side" class="open">
+  <nav id="tabs">
+    <button data-tab="lobby" class="on">로비</button>
+    <button data-tab="menu">메뉴판</button>
+    <button data-tab="scn">시나리오</button>
+    <button data-tab="chat">채팅<em id="chat-unread" hidden>0</em></button>
+    <button data-tab="info">가게 정보</button>
+  </nav>
+  <div id="pane-lobby" class="pane on">
+    <h3>로비 — 테이블 6개 (각 4석)</h3>
+    <div id="lobby-people" class="muted"></div>
+    <div id="table-list"></div>
+    <div class="box">
+      <b>새 테이블 만들기 (코드 설정)</b>
+      <div class="row">
+        <select id="new-table"></select>
+        <input id="new-code" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="4자리 숫자 코드" autocomplete="off">
+        <button id="btn-create" class="primary">만들기</button>
+      </div>
+      <small class="muted">빈 테이블만 만들 수 있어요. 만든 코드는 같은 테이블 사람에게 직접 알려주세요.</small>
+    </div>
+  </div>
+  <div id="pane-menu" class="pane">
+    <div class="disc">⚠ 2026-09 메뉴판 기준, 변동 가능</div>
+    <div id="menu-cats" class="chips"></div>
+    <div id="menu-items"></div>
+    <div id="cart-box">
+      <h3>테이블 장바구니 <span id="cart-count"></span></h3>
+      <div id="cart-lines" class="muted">테이블에 앉으면 주문할 수 있어요.</div>
+      <div id="cart-total"></div>
+      <div class="row"><button id="btn-treat-all">🎁 내가 전부 쏜다</button></div>
+    </div>
+  </div>
+  <div id="pane-scn" class="pane">
+    <div id="scn-body"></div>
+  </div>
+  <div id="pane-chat" class="pane">
+    <div id="chat-log" aria-live="polite"></div>
+    <form id="chat-form" autocomplete="off"><input id="chat-input" maxlength="200" placeholder="테이블 사람들에게만 보여요"><button class="primary">전송</button></form>
+  </div>
+  <div id="pane-info" class="pane"><div id="info-body"></div></div>
+</aside>
+
+<div id="joy" hidden><i></i></div>
+<div id="toasts"></div>
+<div id="rainbow-flash"></div>
+
+<div id="toilet" hidden>
+  <div class="wc-room">
+    <div class="wc-note">머리조심<br><small>변기가 자주 막혀요 휴지는 꼭 휴지통에~</small></div>
+    <div class="wc-fixtures"><span class="sink"></span><span class="toilet-bowl"></span><span class="bin"></span></div>
+    <p>화장실 다녀오는 중… 깔끔해서 좋네요.</p>
+    <div class="wc-bar"><i></i></div>
+  </div>
+</div>
+
+<div id="modal" hidden>
+  <form id="modal-form" class="modal-box" autocomplete="off">
+    <h3 id="modal-title"></h3>
+    <p id="modal-desc" class="muted"></p>
+    <input id="modal-code" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="●●●●" autocomplete="off">
+    <p id="modal-err" class="err"></p>
+    <div class="row"><button type="button" id="modal-cancel">취소</button><button class="primary" id="modal-ok">확인</button></div>
+  </form>
+</div>
+
+<div id="entry">
+  <form id="entry-form" class="entry-box" autocomplete="off">
+    <div class="logo big">Amado</div>
+    <p class="tag">나 오늘 아마도 '아마도'에 갈거야</p>
+    <label>닉네임<input id="in-name" maxlength="12" placeholder="비우면 랜덤 별명"></label>
+    <label>아마도에 처음 온 이유 <small>(선택)</small><input id="in-why" maxlength="60" placeholder="한 줄로 적어주세요"></label>
+    <button class="primary" id="btn-enter">입장하기</button>
+    <p class="muted small">서울 동작구 흑석로 10, 1층 2호 · 메뉴·가격은 2026-09 메뉴판 기준이에요. 인터넷이 안 되면 1인 모드로 둘러볼 수 있어요.</p>
+  </form>
+</div>
+
+<script type="module" src="./main.js"></script>
+</body>
+</html>
