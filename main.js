@@ -101,7 +101,7 @@ const S = {
   me: { id: `u-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, name: '', why: '', color: 0xffc861 },
   entered: false,
   pos: new THREE.Vector3(-2.0, 0, 6.0), rot: Math.PI, target: null, path: [], trip: null, sitTarget: null, seated: false,
-  table: null, seat: null, lastSeat: null, // lastSeat: 일어선 뒤 '자리로 돌아가기'용 {tid, seat}
+  table: null, seat: null, lastEpoch: {}, lastSeat: null, // lastSeat: 일어선 뒤 '자리로 돌아가기'용 {tid, seat}
   drunk: 0, rainbowUntil: 0, wc: false,
   hunger: HUNGER_START, hungerAlert: 0, hungerTimer: 0,
   cam: false, mic: false, peer: null, peerId: null,
@@ -181,7 +181,8 @@ const ENTRANCE = { x0: -3.3, x1: -0.7 };                      // 가까운 쪽(�
 const AIRCON = { x: 3.48, y: 2.45, z: 5.3, w: 1.0, h: 0.3, d: 0.2, collide: false }; // 하단 오른쪽(동쪽) 벽 벽걸이 에어컨
 const SCREEN = { w: 3.6, h: 2.025, cx: 1.3, bottom: 0.3, z: ROOM.d / 2 - 0.06 };   // 남쪽 통유리 벽면 화이트 스크린(16:9): 하단이 바닥에서 0.3m, 입구 문 오른쪽(x>-0.7) 여유 공간 안에서 최대한 크게
 SCREEN.top = SCREEN.bottom + SCREEN.h;                                                 // 상단은 천장에서 떨어진 풀다운 스크린 형태
-const SIGN = { x: ROOM.w / 2 - 0.02, y: 2.0, z: 0.5, r: 0.7 };                           // 'Amado' 원형 간판: 동쪽(오른쪽) 긴 벽, 원래 크기(반지름 0.7), 눈높이보다 약간 위. 안내문(z 2.3~3.7)·화장실 문(z<-5.4)·에어컨(z 5.3)과 안 겹침. 서쪽 벽은 술 냉장고 자리
+const SIGN = { yaw: -Math.PI / 4, y: 2.0, z: 0.5, r: 0.7 };                              // 'Amado' 원형 간판: 동쪽(오른쪽) 긴 벽, 원래 크기(반지름 0.7), 눈높이보다 약간 위. 기본 카메라(남쪽에서 북쪽을 봄)는 동쪽 벽과 시선이 나란해서, 벽에 납작 붙이면(yaw -π/2) 글씨 방향이 화면 안쪽(깊이)으로 향해 대각선으로 솟아 보인다 → 글씨 방향이 화면 가로에 가깝도록 yaw -π/4 로 돌려 카메라 쪽(남서)을 보게 하고, 원 끝이 벽에 닿도록 x 를 안쪽으로 당긴다. 위쪽은 월드 Y 그대로(회전은 Y 축 하나뿐). 서쪽 벽은 술 냉장고 자리
+SIGN.x = ROOM.w / 2 - 0.02 - SIGN.r * Math.abs(Math.cos(SIGN.yaw)); SIGN.ex = SIGN.r * Math.abs(Math.sin(SIGN.yaw)); // ex: 간판이 z 방향으로 차지하는 반폭
 const PROJECTOR = { x: SCREEN.cx, y: 2.65, z: 3.9 };                                  // 스크린 앞 천장 마운트 빔 프로젝터(렌즈가 +z 스크린을 향함), 본체 v11c 의 1.5배
 const BOUNDS = { x0: -3.4, x1: 3.4, z0: -5.7, z1: 6.8 };
 const OWNER_POS = new THREE.Vector3(0, 0, -6.5);              // 주문대 안(카운터 뒤)
@@ -302,7 +303,7 @@ function buildRoom() {
   const sign = new THREE.Mesh(new THREE.CircleGeometry(SIGN.r, 32), new THREE.MeshBasicMaterial({
     map: canvasTex(256, 256, (g, w, hh) => { g.fillStyle = '#1f6a4f'; g.fillRect(0, 0, w, hh); g.fillStyle = '#fff'; g.font = `84px ${SCRIPT_FONT}`; g.textAlign = 'center'; g.fillText('Amado', w / 2, hh / 2 + 26); }),
   }));
-  sign.position.set(SIGN.x, SIGN.y, SIGN.z); sign.rotation.y = -Math.PI / 2; scene.add(sign); // 벽면에 붙여 -x(방 안쪽)를 바라봄 → 동쪽 벽을 보는 카메라에서 글씨가 바로 보인다
+  sign.position.set(SIGN.x, SIGN.y, SIGN.z); sign.rotation.y = SIGN.yaw; scene.add(sign); // 회전은 Y 축만(위쪽=월드 Y). 법선 = (sin yaw, 0, cos yaw) = 방 안쪽·남쪽을 향함
   const banner = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1), new THREE.MeshBasicMaterial({
     transparent: true, map: canvasTex(512, 160, (g, w, hh) => { g.fillStyle = '#fff'; g.font = `120px ${SCRIPT_FONT}`; g.textAlign = 'center'; g.fillText('Amado', w / 2, hh / 2 + 40); }),
   }));
@@ -698,7 +699,7 @@ const seatTaken = (tid, idx) => occupants(tid).some((m) => m.seat === idx);
 function newSession(tid, code, creator, seat) {
   return { id: tid, code, creator, seat, joinedAt: Date.now(), members: new Map(), ch: null, door: null, subscribed: false,
     ready: false, synced: false, pendingToast: null, dirSig: '', cart: [], served: [], serving: new Map(),
-    fails: new Map(), usedNonces: new Set(), left: false, chat: [], seen: new Set(), dropped: false, retry: 0, retryTimer: 0 };
+    fails: new Map(), usedNonces: new Set(), left: false, chat: [], chatSeen: new Set(), epoch: null, seen: new Set(), dropped: false, retry: 0, retryTimer: 0 };
 }
 const seatTarget = (tid, i) => {
   const d = TABLE_DEFS[tid - 1], sp = d.seats[i];
@@ -736,11 +737,16 @@ const UNSTABLE_MSG = '연결이 불안정해요. 다시 눌러주세요';
 const tableLive = (sess) => !!(sess.ch && sess.subscribed && !sess.left && (sess.ch.state === undefined || sess.ch.state === 'joined'));
 function flushJoinToast(sess) { if (T !== sess || !sess.pendingToast) return; toast(sess.pendingToast); sess.pendingToast = null; }
 // okMsg 는 첫 테이블 presence sync 에서 멤버십이 확정된 뒤에만 띄운다 (rival 충돌이면 띄우지 않고 충돌 토스트만).
-async function openSession(tid, code, creator, seat, okMsg) {
+async function openSession(tid, code, creator, seat, okMsg, epoch = null) {
   T = newSession(tid, code, creator, seat);
   const mySession = T;
   mySession.pendingToast = okMsg || null;
-  if (creator) $('#chat-log').textContent = ''; // 빈 테이블에 새로 앉는 사람은 빈 채팅에서 시작 (이전 테이블의 대화가 남아 보이지 않게)
+  // 테이블 세대(epoch): 빈 테이블에 새로 앉은 사람(creator)이 새로 만들고, 합류자는 방장(keeper)이 grant 로 알려준다.
+  // 마지막 사람이 일어나 리셋되면 다음에 앉는 사람이 새 세대를 만들므로 세대가 바뀐다 → 내가 마지막으로 본 세대와 다르면(리셋 알림을 못 받았어도)
+  // 내 화면의 채팅을 비운다. 같은 세대에 잠깐 일어났다 다시 앉는 경우는 대화가 이어지므로 유지.
+  mySession.epoch = creator ? uid() + uid() : (typeof epoch === 'string' ? epoch.slice(0, 40) : null);
+  if (creator || !mySession.epoch || S.lastEpoch[tid] !== mySession.epoch) { $('#chat-log').textContent = ''; const u = $('#chat-unread'); u.hidden = true; u.textContent = '0'; }
+  S.lastEpoch[tid] = mySession.epoch;
   if (Net.sb && Net.ready) {
     await new Promise((res) => {
       const to = setTimeout(res, 6000);
@@ -776,7 +782,7 @@ function connectTable(sess, onFirstUp) {
       sess.subscribed = true; sess.retry = 0;
       if (sess.dropped) { // 끊겼다가 다시 붙음: 내 위치 정보를 다시 올리고 계산서·서빙 목록을 다시 맞춘다 (mergeLine/mergeServed 는 중복 병합 안 함)
         sess.dropped = false;
-        if (T === sess) { toast('연결이 끊겼다가 다시 연결됐어요', 3000); trackTable(); tsend('sync-req', { id: S.me.id }, { quiet: true }); }
+        if (T === sess) { toast('연결이 끊겼다가 다시 연결됐어요', 3000); trackTable(); tsend('sync-req', { id: S.me.id, re: true, mine: recentChat(sess, S.me.id) }, { quiet: true }); }
       }
       onFirstUp?.(); onFirstUp = null;
     } else if (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') markTableDown(sess);
@@ -805,7 +811,7 @@ function closeSession() {
 // 테이블 초기화: 비밀번호·채팅 로그·계산서·서빙된 음식/술을 지우고, 디렉토리를 '비어 있음·공개'로 맞춘다.
 function resetTable(sess) {
   const tid = sess.id;
-  sess.code = null; sess.chat = []; sess.cart = []; sess.served = []; sess.serving = new Map();
+  sess.code = null; sess.chat = []; sess.chatSeen = new Set(); delete S.lastEpoch[tid]; sess.cart = []; sess.served = []; sess.serving = new Map();
   sess.fails = new Map(); sess.usedNonces = new Set(); sess.seen = new Set();
   $('#chat-log').textContent = ''; const u = $('#chat-unread'); u.hidden = true; u.textContent = '0';
   Dir.delete(tid);
@@ -869,12 +875,12 @@ async function onKnock(sess, p) {
   sess.usedNonces.add(p.nonce);
   const taken = [...sess.members.values()].map((m) => m.seat);
   if (sess.members.size >= SEATS) return reply({ ok: false, reason: 'full' });
-  if (!sess.code) return reply({ ok: true, taken, open: true }); // 비밀번호 없는 공개 테이블: 바로 앉을 수 있다
+  if (!sess.code) return reply({ ok: true, taken, open: true, epoch: sess.epoch }); // 비밀번호 없는 공개 테이블: 바로 앉을 수 있다
   if (!p.proof) return reply({ ok: false, reason: 'need-pw' }); // 비밀번호가 필요한 테이블 — 입력 없이 노크한 경우(시도 횟수에 안 셈)
   const ok = (await proofOf(sess.id, sess.code, p.nonce)) === p.proof;
   if (!ok) { f.n++; if (f.n >= 3) { f.until = Date.now() + 60000; f.n = 0; } sess.fails.set(p.id, f); return reply({ ok: false, reason: 'bad' }); }
   sess.fails.delete(p.id);
-  reply({ ok: true, taken });
+  reply({ ok: true, taken, epoch: sess.epoch });
 }
 // 새로 들어오는 사람의 노크 (코드 증명) → 문 채널에서 승인/거절
 async function knock(tid, code) { // code 없으면 비밀번호 없이 노크(공개 테이블용)
@@ -932,11 +938,15 @@ function onTableEvent(sess, ev, p) {
       break;
     }
     case 'sync-req': {
-      if (p.id !== S.me.id && isKeeper(sess)) tsend('sync', { to: p.id, cart: sess.cart, served: sess.served });
+      if (p.id === S.me.id) break;
+      mergeChat(sess, p.mine); // 다시 연결된 사람이 끊긴 사이 보낸 줄이 내 기록에 없으면 채운다
+      if (isKeeper(sess)) tsend('sync', { to: p.id, cart: sess.cart, served: sess.served, chat: p.re ? recentChat(sess) : undefined });
+      else if (p.re) tsend('sync', { to: p.id, chat: recentChat(sess) }, { quiet: true }); // 방장이 방금 재연결한 본인이면 다른 멤버가 채팅만 맞춰준다
       break;
     }
     case 'sync': {
       if (p.to !== S.me.id) break;
+      mergeChat(sess, p.chat);
       for (const l of p.cart || []) mergeLine(l);
       for (const s of p.served || []) mergeServed(s);
       renderCart(); renderTabletop(); syncTableProps(); break;
@@ -1386,7 +1396,26 @@ function logLine(text, cls = '', name = null) {
   log.append(p); while (log.children.length > 200) log.firstChild.remove(); log.scrollTop = log.scrollHeight;
   if (!$('#pane-chat').classList.contains('on') && cls !== 'sys') { const u = $('#chat-unread'); u.hidden = false; u.textContent = String((+u.textContent || 0) + 1); }
 }
+const CHAT_SYNC_MS = 120000, CHAT_SYNC_MAX = 12; // 재연결 때 맞춰주는 채팅은 최근 2분·12줄까지만 (새로 앉은 사람에게 지난 대화를 보여주지 않는다)
+function recentChat(sess, by = null) {
+  const now = Date.now();
+  return sess.chat.filter((c) => now - c.ts < CHAT_SYNC_MS && (!by || c.id === by)).slice(-CHAT_SYNC_MAX);
+}
+function mergeChat(sess, lines) {
+  if (!Array.isArray(lines)) return;
+  const now = Date.now();
+  for (const c of lines.slice(-CHAT_SYNC_MAX)) {
+    if (!c || typeof c.cid !== 'string' || sess.chatSeen.has(c.cid) || !(now - c.ts < CHAT_SYNC_MS)) continue;
+    noteChat(sess, c); logLine(String(c.text).slice(0, 200), c.id === S.me.id ? 'me' : '', String(c.name).slice(0, 20));
+  }
+}
+function noteChat(sess, p) {
+  if (!sess || typeof p.cid !== 'string') return;
+  sess.chatSeen.add(p.cid); sess.chat.push({ cid: p.cid, id: p.id, name: p.name, text: String(p.text).slice(0, 200), ts: Number.isFinite(p.ts) ? p.ts : Date.now() });
+  while (sess.chat.length > 30) sess.chat.shift();
+}
 function addChat(p) {
+  if (T && typeof p.cid === 'string') { if (T.chatSeen.has(p.cid)) return; noteChat(T, { ...p, ts: Date.now() }); }
   const mine = p.id === S.me.id;
   chatTimes.push(Date.now());
   logLine(String(p.text).slice(0, 200), mine ? 'me' : '', p.name);
@@ -1397,7 +1426,7 @@ function sendChat(text) {
   if (!T) { toast('테이블에 앉으면 대화할 수 있어요. 대화는 같은 테이블에만 보여요.'); return; }
   let t = text.trim().slice(0, 200); if (!t) return;
   if (lvl() === 2 && Math.random() < 0.4) t += ' ~ㅋㅋ';
-  tsend('chat', { id: S.me.id, name: S.me.name, text: t });
+  tsend('chat', { id: S.me.id, name: S.me.name, text: t, cid: uid() });
 }
 
 /* ================================================================ 화상 (PeerJS, 카메라·마이크 기본 OFF) */
@@ -1601,7 +1630,7 @@ async function joinExisting(tid, code, seatPref = null) {
   const seat = seatPref != null && !taken.includes(seatPref) ? seatPref : [0, 1, 2, 3].find((i) => !taken.includes(i));
   if (seat == null) { setSitErr('만석이에요.'); return false; }
   // 공개 테이블에 불필요하게 비밀번호를 넣었더라도 세션 비밀번호는 없음으로 둔다(나중에 keeper 가 되어도 테이블이 잠기지 않게)
-  await openSession(tid, r.open ? null : (code || null), false, seat, `🪑 테이블 ${tid}에 앉았어요.`);
+  await openSession(tid, r.open ? null : (code || null), false, seat, `🪑 테이블 ${tid}에 앉았어요.`, r.epoch);
   return true;
 }
 async function confirmSit() {
@@ -2232,7 +2261,7 @@ async function selfTest() {
   const scrL = SCREEN.cx - SCREEN.w / 2, scrR = SCREEN.cx + SCREEN.w / 2;
   ok('스크린: 가로 3.6m × 세로 2.025m(16:9), 하단이 바닥에서 0.2~0.5m 위, 상단은 천장 아래', SCREEN.w === 3.6 && Math.abs(SCREEN.h - 2.025) < 1e-9 && Math.abs(SCREEN.w / SCREEN.h - 16 / 9) < 0.01 && SCREEN.bottom >= 0.2 && SCREEN.bottom <= 0.5 && Math.abs(SCREEN.top - SCREEN.bottom - SCREEN.h) < 1e-9 && SCREEN.top < ROOM.h);
   ok('스크린이 입구 문(남쪽 벽 왼쪽)·벽 경계를 가리지 않음: 왼쪽 끝이 입구 문 오른쪽 끝보다 오른쪽', scrL > ENTRANCE.x1 && scrR <= ROOM.w / 2 && Math.abs(SCREEN.z - ROOM.d / 2) < 0.1);
-  ok('Amado 간판: 동쪽 벽(x≈+3.6)에 붙고 원래 크기(반지름 0.7), 눈높이 위·천장 아래, 안내문(z 2.3~3.7)·화장실 문·에어컨과 안 겹침', Math.abs(SIGN.x - ROOM.w / 2) < 0.05 && SIGN.r === 0.7 && SIGN.y - SIGN.r > 1.2 && SIGN.y + SIGN.r <= ROOM.h && SIGN.z - SIGN.r >= -ROOM.d / 2 && (SIGN.z + SIGN.r < 2.3 || SIGN.z - SIGN.r > 3.7) && SIGN.z + SIGN.r < AIRCON.z - AIRCON.w / 2 && SIGN.z - SIGN.r > WC_DOOR.z + 0.45);
+  ok('Amado 간판: 동쪽 벽(x≈+3.6) 앞에 놓이고(원 끝이 벽에 닿음) 원래 크기(반지름 0.7), 눈높이 위·천장 아래, 안내문(z 2.3~3.7)·화장실 문·에어컨과 안 겹침', SIGN.x + SIGN.r * Math.abs(Math.cos(SIGN.yaw)) <= ROOM.w / 2 && SIGN.x + SIGN.r * Math.abs(Math.cos(SIGN.yaw)) > ROOM.w / 2 - 0.05 && SIGN.r === 0.7 && SIGN.y - SIGN.r > 1.2 && SIGN.y + SIGN.r <= ROOM.h && SIGN.z - SIGN.ex >= -ROOM.d / 2 && (SIGN.z + SIGN.ex < 2.3 || SIGN.z - SIGN.ex > 3.7) && SIGN.z + SIGN.ex < AIRCON.z - AIRCON.w / 2 && SIGN.z - SIGN.ex > WC_DOOR.z + 0.45);
   ok('프로젝터: 스크린 앞(방 안쪽) 천장 근처, 스크린 가로 범위 안', PROJECTOR.z < SCREEN.z - 1 && PROJECTOR.y > 2 && PROJECTOR.y < ROOM.h && PROJECTOR.x >= scrL && PROJECTOR.x <= scrR);
   ok('스크린 채널 amado-screen: 접두사·다른 채널과 구분, 이벤트는 테이블·문·디렉토리와 안 겹침', CH.screen === 'amado-screen' && ![...PRIVATE_EVENTS, ...DOOR_EVENTS, ...DIR_EVENTS].some((e) => SCREEN_EVENTS.includes(e)));
   ok('유튜브 ID 추출: watch·youtu.be·shorts·live·embed, 잘못된 URL 은 null', ['https://www.youtube.com/watch?v=aHwTaabiPQc&t=3', 'https://youtu.be/aHwTaabiPQc?si=x', 'https://www.youtube.com/shorts/aHwTaabiPQc', 'https://www.youtube.com/live/aHwTaabiPQc', 'https://www.youtube.com/embed/aHwTaabiPQc'].every((u) => parseYouTubeId(u) === 'aHwTaabiPQc') && ['', 'hello', 'https://example.com/watch?v=aHwTaabiPQc', 'https://www.youtube.com/watch?v=short'].every((u) => parseYouTubeId(u) === null));
