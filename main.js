@@ -44,7 +44,7 @@ const CH = {
 // 테이블 채널에서만 오가는 이벤트. 로비·문·디렉토리 채널로는 이 이벤트를 보낼 수 없다(tsend만 보냄).
 const PRIVATE_EVENTS = ['chat', 'order', 'cancel', 'treat', 'cheers', 'rainbow', 'care', 'sync-req', 'sync', 'serve', 'eat', 'drink'];
 const DOOR_EVENTS = ['knock', 'grant'];
-const DIR_EVENTS = ['tables-req', 'tables-state'];
+const DIR_EVENTS = ['tables-req', 'tables-state', 'table-reset'];
 const SCREEN_EVENTS = ['screen', 'screen-req'];
 // 로비 presence 에 허용되는 키 (위치·표시용만). 취기·허기·코드·채팅은 여기 없음.
 const LOBBY_KEYS = ['id', 'name', 'color', 'x', 'z', 'rot', 'table', 'seat', 'sit'];
@@ -179,9 +179,10 @@ const FRIDGE_LANE_Z = -4.8;                                   // 맨 앞 줄 테
 const WC_DOOR = { x: 3.6, z: -5.9 };                          // 먼 쪽 끝, 주문대 오른쪽(동쪽 벽)
 const ENTRANCE = { x0: -3.3, x1: -0.7 };                      // 가까운 쪽(남쪽) 벽, 왼쪽 통유리 접이문
 const AIRCON = { x: 3.48, y: 2.45, z: 5.3, w: 1.0, h: 0.3, d: 0.2, collide: false }; // 하단 오른쪽(동쪽) 벽 벽걸이 에어컨
-const SCREEN = { w: 2.4, h: 1.35, cx: 0.75, top: ROOM.h, z: ROOM.d / 2 - 0.06 };   // 남쪽 통유리 벽면 화이트 스크린(16:9): 천장에서 내려와 y 1.85 까지. 입구(x<-0.7)·Amado 간판(x>2.15) 사이
-const SIGN = { x: 2.85, y: 2.3, r: 0.7 };                                           // 'Amado' 원형 간판(남쪽 벽 오른쪽). 스크린을 비켜 v11c 에서 x 2.0 → 2.85
-const PROJECTOR = { x: SCREEN.cx, y: 2.72, z: 4.6 };                                // 스크린 앞 천장 마운트 빔 프로젝터(렌즈가 +z 스크린을 향함)
+const SCREEN = { w: 3.6, h: 2.025, cx: 1.3, bottom: 0.3, z: ROOM.d / 2 - 0.06 };   // 남쪽 통유리 벽면 화이트 스크린(16:9): 하단이 바닥에서 0.3m, 입구 문 오른쪽(x>-0.7) 여유 공간 안에서 최대한 크게
+SCREEN.top = SCREEN.bottom + SCREEN.h;                                                 // 상단은 천장에서 떨어진 풀다운 스크린 형태
+const SIGN = { x: ROOM.w / 2 - 0.02, y: 2.0, z: 0.5, r: 0.7 };                           // 'Amado' 원형 간판: 동쪽(오른쪽) 긴 벽, 원래 크기(반지름 0.7), 눈높이보다 약간 위. 안내문(z 2.3~3.7)·화장실 문(z<-5.4)·에어컨(z 5.3)과 안 겹침. 서쪽 벽은 술 냉장고 자리
+const PROJECTOR = { x: SCREEN.cx, y: 2.65, z: 3.9 };                                  // 스크린 앞 천장 마운트 빔 프로젝터(렌즈가 +z 스크린을 향함), 본체 v11c 의 1.5배
 const BOUNDS = { x0: -3.4, x1: 3.4, z0: -5.7, z1: 6.8 };
 const OWNER_POS = new THREE.Vector3(0, 0, -6.5);              // 주문대 안(카운터 뒤)
 const SPAWN = { x: -2.0, z: 6.0 };                            // 입구(하단 왼쪽) 근처
@@ -301,7 +302,7 @@ function buildRoom() {
   const sign = new THREE.Mesh(new THREE.CircleGeometry(SIGN.r, 32), new THREE.MeshBasicMaterial({
     map: canvasTex(256, 256, (g, w, hh) => { g.fillStyle = '#1f6a4f'; g.fillRect(0, 0, w, hh); g.fillStyle = '#fff'; g.font = `84px ${SCRIPT_FONT}`; g.textAlign = 'center'; g.fillText('Amado', w / 2, hh / 2 + 26); }),
   }));
-  sign.position.set(SIGN.x, SIGN.y, hd - 0.12); sign.rotation.y = Math.PI; scene.add(sign);
+  sign.position.set(SIGN.x, SIGN.y, SIGN.z); sign.rotation.y = -Math.PI / 2; scene.add(sign); // 벽면에 붙여 -x(방 안쪽)를 바라봄 → 동쪽 벽을 보는 카메라에서 글씨가 바로 보인다
   const banner = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1), new THREE.MeshBasicMaterial({
     transparent: true, map: canvasTex(512, 160, (g, w, hh) => { g.fillStyle = '#fff'; g.font = `120px ${SCRIPT_FONT}`; g.textAlign = 'center'; g.fillText('Amado', w / 2, hh / 2 + 40); }),
   }));
@@ -587,6 +588,7 @@ function joinLobby() {
       const ch = Net.sb.channel(CH.dir, { config: { broadcast: { self: false, ack: false } } });
       ch.on('broadcast', { event: 'tables-state' }, ({ payload }) => onDirState(payload));
       ch.on('broadcast', { event: 'tables-req' }, () => onDirReq());
+      ch.on('broadcast', { event: 'table-reset' }, ({ payload }) => onDirReset(payload));
       Net.dir = ch; return ch;
     },
     () => { Net.dirReady = true; dirSend('tables-req', { from: S.me.id }); announceTable(true); }, // 새로 들어오면(새로고침 포함) 현재 점유 상태부터 요청
@@ -649,6 +651,12 @@ function onDirState(p) {
   else Dir.set(tid, { count, seats: Array.isArray(p.seats) ? p.seats.filter((s) => Number.isInteger(s) && s >= 0 && s < SEATS) : [], locked: p.locked === true, ts: Date.now() });
   refreshSitDialog();
 }
+function onDirReset(p) { // 마지막 사람이 일어나 테이블이 초기화됨: 점유·잠금 표시를 비운다 (앉아 있는 사람이 있으면 그 테이블의 keeper 가 곧바로 다시 알린다)
+  const tid = p?.tid;
+  if (!Number.isInteger(tid) || tid < 1 || tid > TABLES) return;
+  if (T?.id === tid) return;
+  Dir.delete(tid); refreshSitDialog();
+}
 function onDirReq() { setTimeout(() => announceTable(true), Math.random() * 250); } // keeper 들이 한꺼번에 답하지 않게 약간 흩뿌림
 function dirEntry(tid) {
   const e = Dir.get(tid); if (!e) return null;
@@ -690,7 +698,7 @@ const seatTaken = (tid, idx) => occupants(tid).some((m) => m.seat === idx);
 function newSession(tid, code, creator, seat) {
   return { id: tid, code, creator, seat, joinedAt: Date.now(), members: new Map(), ch: null, door: null, subscribed: false,
     ready: false, synced: false, pendingToast: null, dirSig: '', cart: [], served: [], serving: new Map(),
-    fails: new Map(), usedNonces: new Set(), left: false, chat: [] };
+    fails: new Map(), usedNonces: new Set(), left: false, chat: [], seen: new Set(), dropped: false, retry: 0, retryTimer: 0 };
 }
 const seatTarget = (tid, i) => {
   const d = TABLE_DEFS[tid - 1], sp = d.seats[i];
@@ -706,27 +714,37 @@ function trackTable() {
 function tablePayload() {
   return { id: S.me.id, name: S.me.name, why: S.me.why, color: S.me.color, seat: S.seat, drunk: S.drunk, hunger: S.hunger, cam: S.cam, mic: S.mic, peer: S.peerId, wc: S.wc, trip: !!S.trip, joinedAt: T.joinedAt, creator: T.creator }; // seat = 앉은 자리(3D 위치는 seat 로 모든 탭이 같게 계산), trip = 냉장고 왕복 중(이때만 로비 x,z 를 따라감)
 }
-function tsend(event, payload) {
-  if (!T) return;
+// 반환값: 보냈으면 true. 채널이 끊겨 있으면(구독이 풀린 상태) 보내지 않는다 — supabase-js 는 이때 send() 를 REST 로 돌려 보내는데,
+// REST 로 간 broadcast 는 내 채널이 구독 중이 아니라서 self 로 돌아오지 않아 내 화면엔 아무 일도 안 일어난다(조용한 실패).
+function tsend(event, payload, { quiet = false, onOk = null } = {}) {
+  if (!T) return false;
   if (!PRIVATE_EVENTS.includes(event)) throw new Error(`비공개 이벤트 아님: ${event}`);
-  if (T.ch && T.subscribed) { T.ch.send({ type: 'broadcast', event, payload }); return; }
-  if (T.ch) return; // 구독 전 — 보내지 않는다(다른 곳으로 새지 않게)
-  queueMicrotask(() => onTableEvent(T, event, payload)); // 1인 모드: 루프백
+  if (T.ch) {
+    if (!tableLive(T)) { if (!quiet) toast(UNSTABLE_MSG, 3000); return false; }
+    if (event === 'drink' || event === 'eat') payload = { ...payload, eid: uid() }; // 같은 이벤트가 두 번 적용되지 않게 식별자를 붙인다
+    const sess = T;
+    Promise.resolve(T.ch.send({ type: 'broadcast', event, payload })).then((r) => {
+      if (r === 'ok') { onOk?.(); return; } // 전송이 실제로 성공했을 때만 성공 안내를 띄운다
+      if (T === sess && !sess.left) { markTableDown(sess); if (!quiet) toast(UNSTABLE_MSG, 3000); }
+    }, () => { if (T === sess && !sess.left) { markTableDown(sess); if (!quiet) toast(UNSTABLE_MSG, 3000); } });
+    return true;
+  }
+  queueMicrotask(() => { onTableEvent(T, event, payload); onOk?.(); }); // 1인 모드: 루프백
+  return true;
 }
+const UNSTABLE_MSG = '연결이 불안정해요. 다시 눌러주세요';
+const tableLive = (sess) => !!(sess.ch && sess.subscribed && !sess.left && (sess.ch.state === undefined || sess.ch.state === 'joined'));
 function flushJoinToast(sess) { if (T !== sess || !sess.pendingToast) return; toast(sess.pendingToast); sess.pendingToast = null; }
 // okMsg 는 첫 테이블 presence sync 에서 멤버십이 확정된 뒤에만 띄운다 (rival 충돌이면 띄우지 않고 충돌 토스트만).
 async function openSession(tid, code, creator, seat, okMsg) {
   T = newSession(tid, code, creator, seat);
   const mySession = T;
   mySession.pendingToast = okMsg || null;
+  if (creator) $('#chat-log').textContent = ''; // 빈 테이블에 새로 앉는 사람은 빈 채팅에서 시작 (이전 테이블의 대화가 남아 보이지 않게)
   if (Net.sb && Net.ready) {
-    const ch = Net.sb.channel(CH.table(tid), { config: { broadcast: { self: true, ack: false }, presence: { key: S.me.id } } });
-    ch.on('presence', { event: 'sync' }, () => onTableSync(mySession, ch.presenceState()));
-    for (const ev of PRIVATE_EVENTS) ch.on('broadcast', { event: ev }, ({ payload }) => { if (T === mySession) onTableEvent(mySession, ev, payload); });
-    mySession.ch = ch;
     await new Promise((res) => {
       const to = setTimeout(res, 6000);
-      ch.subscribe((st) => { if (st === 'SUBSCRIBED') { mySession.subscribed = true; clearTimeout(to); res(); } });
+      connectTable(mySession, () => { clearTimeout(to); res(); });
     });
     const door = Net.sb.channel(CH.door(tid), { config: { broadcast: { self: false } } });
     door.on('broadcast', { event: 'knock' }, ({ payload }) => onKnock(mySession, payload));
@@ -744,19 +762,63 @@ async function openSession(tid, code, creator, seat, okMsg) {
   if (!mySession.ch) flushJoinToast(mySession);       // 1인 모드: 기다릴 sync 가 없다
   else setTimeout(() => flushJoinToast(mySession), 4000); // sync 가 안 오는 경우의 안전장치
 }
+// 테이블 채널 연결(최초·재구독 공용). 최초 SUBSCRIBED 에서 onFirstUp 을 부른다.
+function connectTable(sess, onFirstUp) {
+  const old = sess.ch; sess.ch = null; // 먼저 비워서 옛 채널의 CLOSED 콜백이 재시도를 또 걸지 않게 한다
+  if (old) { try { Net.sb.removeChannel(old); } catch { /* 무시 */ } }
+  const ch = Net.sb.channel(CH.table(sess.id), { config: { broadcast: { self: true, ack: false }, presence: { key: S.me.id } } });
+  ch.on('presence', { event: 'sync' }, () => onTableSync(sess, ch.presenceState()));
+  for (const ev of PRIVATE_EVENTS) ch.on('broadcast', { event: ev }, ({ payload }) => { if (T === sess && sess.ch === ch) onTableEvent(sess, ev, payload); });
+  sess.ch = ch;
+  ch.subscribe((st) => {
+    if (sess.ch !== ch || sess.left) return;
+    if (st === 'SUBSCRIBED') {
+      sess.subscribed = true; sess.retry = 0;
+      if (sess.dropped) { // 끊겼다가 다시 붙음: 내 위치 정보를 다시 올리고 계산서·서빙 목록을 다시 맞춘다 (mergeLine/mergeServed 는 중복 병합 안 함)
+        sess.dropped = false;
+        if (T === sess) { toast('연결이 끊겼다가 다시 연결됐어요', 3000); trackTable(); tsend('sync-req', { id: S.me.id }, { quiet: true }); }
+      }
+      onFirstUp?.(); onFirstUp = null;
+    } else if (st === 'CLOSED' || st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') markTableDown(sess);
+  });
+}
+function markTableDown(sess) {
+  if (sess.left || !sess.ch || !sess.ready) return; // 최초 연결 중의 실패는 openSession 이 처리
+  sess.subscribed = false; sess.dropped = true;
+  if (sess.retryTimer) return;
+  const delay = Math.min(15000, 1000 * 2 ** (sess.retry = (sess.retry || 0) + 1) / 2);
+  console.warn(`[amado] table ${sess.id} channel: ${delay / 1000}초 뒤 재구독`);
+  sess.retryTimer = setTimeout(() => { sess.retryTimer = 0; if (!sess.left && T === sess && !sess.subscribed) { connectTable(sess); markTableDown(sess); } }, delay);
+}
+// 콜백 없이 조용히 죽은 채널 대비 감시 (1초 틱에서 호출)
+function watchTable() {
+  const s = T; if (!s || !s.ch || !s.ready || s.left) return;
+  if (s.subscribed && s.ch.state !== undefined && s.ch.state !== 'joined') markTableDown(s);
+}
 function closeSession() {
   const s = T; if (!s) return;
-  s.left = true;
+  s.left = true; clearTimeout(s.retryTimer);
   try { if (s.ch) { s.ch.untrack?.(); Net.sb.removeChannel(s.ch); } } catch { /* 무시 */ }
   try { if (s.door) Net.sb.removeChannel(s.door); } catch { /* 무시 */ }
   T = null;
+}
+// 테이블 초기화: 비밀번호·채팅 로그·계산서·서빙된 음식/술을 지우고, 디렉토리를 '비어 있음·공개'로 맞춘다.
+function resetTable(sess) {
+  const tid = sess.id;
+  sess.code = null; sess.chat = []; sess.cart = []; sess.served = []; sess.serving = new Map();
+  sess.fails = new Map(); sess.usedNonces = new Set(); sess.seen = new Set();
+  $('#chat-log').textContent = ''; const u = $('#chat-unread'); u.hidden = true; u.textContent = '0';
+  Dir.delete(tid);
+  dirSend('tables-state', { tid, count: 0, seats: [], locked: false, from: S.me.id });
+  dirSend('table-reset', { tid, from: S.me.id });
 }
 function leaveTable() {
   if (!T) return;
   const tid = T.id, sp = TABLE_DEFS[tid - 1], tripping = !!S.trip;
   S.lastSeat = { tid, seat: S.seat ?? 0 };
-  // 마지막 사람이 나가면 즉시 '비어 있음'을 알린다 (다른 멤버가 남아 있으면 그쪽 keeper 가 이어서 알린다)
-  if (T.synced && T.members.size <= 1) dirSend('tables-state', { tid, count: 0, seats: [], locked: false, from: S.me.id });
+  // 마지막 사람이 나가면(presence 멤버 0명이 되는 순간) 테이블을 완전히 초기화하고 '비어 있음·잠금 해제'를 알린다.
+  // 다른 멤버가 남아 있으면 리셋하지 않는다 (그쪽 keeper 가 이어서 알린다). 채널 재연결 깜빡임은 leaveTable 을 거치지 않으므로 리셋되지 않는다.
+  if (T.synced && T.members.size <= 1) resetTable(T);
   stopMedia(true); closePeers();
   closeSession();
   S.path = []; S.trip = null; closeFridgePop();
@@ -833,6 +895,10 @@ async function knock(tid, code) { // code 없으면 비밀번호 없이 노크(�
 /* ---- 테이블 이벤트 처리 (모든 공유 상태는 여기로) ---- */
 function onTableEvent(sess, ev, p) {
   if (!p || T !== sess) return;
+  if (p.eid) { // 재연결·재전송으로 같은 이벤트가 두 번 와도 한 번만 적용
+    if (sess.seen.has(p.eid)) return;
+    sess.seen.add(p.eid); if (sess.seen.size > 200) sess.seen.delete(sess.seen.values().next().value);
+  }
   switch (ev) {
     case 'chat': addChat(p); break;
     case 'order': applyOrder(p.line); break;
@@ -979,8 +1045,7 @@ function order(item) {
   if (!T) { toast('테이블에 앉으면 주문할 수 있어요. 3D 테이블이나 의자를 눌러 앉아보세요.'); return; }
   if (item.kind === 'drink') { toast('술·음료는 주문하지 않고 술 냉장고에서 직접 가져와요.'); return; }
   const line = { id: uid(), itemId: item.id, name: item.name, price: item.price, alcohol: false, kind: 'food', by: S.me.id, byName: S.me.name, paidBy: null, paidByName: null, status: 'ordered', serveAt: Date.now() + rand(SERVE_MIN_MS, SERVE_MAX_MS) };
-  tsend('order', { line });
-  toast(`🧾 ${item.name} 주문했어요. 곧 나와요!`, 2200);
+  tsend('order', { line }, { onOk: () => toast(`🧾 ${item.name} 주문했어요. 곧 나와요!`, 2200) }); // 전송 실패 땐 tsend 의 실패 토스트만 뜬다
 }
 function chipLine() {
   return { id: CHIP_ID, itemId: 'shrimpchip', name: '알새우칩 (서비스)', price: 0, service: true, alcohol: false, kind: 'food', by: 'owner', byName: '사장님', host: S.me.id, paidBy: null, status: 'ordered', serveAt: Date.now() + rand(8000, 12000) };
@@ -1127,7 +1192,6 @@ function cancelFridge() { closeFridgePop(); returnToSeat(null); }
 function returnToSeat(def) {
   if (!T || !S.trip) return;
   S.trip = { phase: 'returning', pick: def, t0: Date.now() };
-  if (def) toast(`🥂 ${def.name} 가지고 자리로 돌아가요`, 2000);
   const seat = TABLE_DEFS[T.id - 1].seats[S.seat];
   S.path = fridgeRoute(seat).reverse().slice(1);
   S.sitTarget = seatTarget(T.id, S.seat);
@@ -1141,7 +1205,7 @@ function deliverDrink(def) {
   if (!T) return;
   const it = itemById(def.menuId);
   const line = { id: uid(), itemId: def.key, name: def.name, price: it.price, alcohol: !!it.alcohol, kind: 'drink', by: S.me.id, byName: S.me.name, paidBy: null, paidByName: null, status: 'served', fridge: true };
-  tsend('order', { line }); // 계산서에 자동 추가
+  tsend('order', { line }, { onOk: () => toast(`🥂 ${def.name} 가져왔어요. 계산서에 올렸어요`, 2000) }); // 계산서에 자동 추가 — 전송이 성공했을 때만 안내
   tsend('serve', { sid: line.id, lineId: line.id, itemId: def.key, name: def.name, kind: 'drink', alcohol: line.alcohol, unit: def.unit, max: bitesOf('drink', def.unit) });
 }
 
@@ -1410,10 +1474,16 @@ function stopMedia(all) {
   for (const k of ['v', 'a']) { media[k]?.stop(); media[k] = null; }
   S.cam = false; S.mic = false; media.stream = null; if (all) updateMediaButtons();
 }
+// HUD 버튼 라벨: 이모지(.e)와 글자(.t)를 나눠 담는다. 좁은 화면에서는 CSS 가 .t 를 숨기므로 title·aria-label 에 글자를 그대로 남긴다.
+function setAct(btn, emoji, text) {
+  btn.textContent = '';
+  btn.append(h('span', { class: 'e' }, emoji), h('span', { class: 't' }, ` ${text}`));
+  btn.title = text; btn.setAttribute('aria-label', text);
+}
 function updateMediaButtons() {
   const c = $('#btn-cam'), m = $('#btn-mic');
-  c.setAttribute('aria-pressed', String(S.cam)); c.textContent = `📷 카메라 ${S.cam ? 'ON' : 'OFF'}`;
-  m.setAttribute('aria-pressed', String(S.mic)); m.textContent = `🎤 마이크 ${S.mic ? 'ON' : 'OFF'}`;
+  c.setAttribute('aria-pressed', String(S.cam)); setAct(c, '📷', `카메라 ${S.cam ? 'ON' : 'OFF'}`);
+  m.setAttribute('aria-pressed', String(S.mic)); setAct(m, '🎤', `마이크 ${S.mic ? 'ON' : 'OFF'}`);
 }
 
 /* ================================================================ 줌형 격자 */
@@ -1465,7 +1535,8 @@ function toggleGrid() { const z = $('#zoom'); z.hidden = !z.hidden; document.bod
 function onTableChanged(sitting) {
   $('#zoom').hidden = !sitting;
   document.body.classList.toggle('zoomed', sitting);
-  $('#btn-sit').textContent = sitting ? '🪑 일어서기' : '🪑 자리로 돌아가기';
+  setAct($('#btn-sit'), '🪑', sitting ? '일어서기' : '자리로 돌아가기');
+  seatHinted = false; updateMoveHint();
   $('#btn-sit').hidden = !sitting && !S.lastSeat; // 일어선 뒤에는 '자리로 돌아가기' 버튼으로 같은 자리에 다시 앉을 수 있다
   $('#btn-side').hidden = !sitting;
   setSide(sitting ? 'open' : 'hidden'); // 패널은 앉았을 때만 자동으로 열리고, 일어서면 닫힌다
@@ -1591,7 +1662,7 @@ function renderInfo() {
   b.append(h('p', { class: 'info-row' }, '주소 서울 동작구 흑석로 10 · 전화 070-4123-7776 · 인스타 @sangdo_amado'));
   b.append(h('p', { class: 'info-row' }, '영업시간은 가게에 직접 확인해주세요.'));
   b.append(h('h3', {}, '온라인 월드 이용 방법'));
-  b.append(h('ol', { class: 'howto' }, ['🪑 테이블(또는 테이블 이름표)을 클릭해 앉아요', '🧾 메뉴판에서 담기를 누르면 주문돼요', '🧊 술·음료는 냉장고에서 가져와요', '🥢 테이블 위 목록(또는 계산서)에서 먹기/마시기를 눌러요'].map((t) => h('li', {}, t))));
+  b.append(h('ol', { class: 'howto' }, ['🪑 테이블(또는 테이블 이름표)을 클릭해 앉아요', '🧾 메뉴판에서 담기를 누르면 주문돼요', '🧊 술·음료는 냉장고에서 가져와요', '🥢 테이블 위 목록(또는 계산서)에서 먹기/마시기를 눌러요', '🚶 서 있을 땐 WASD·방향키(모바일은 왼쪽 아래 조이스틱)로 이동해요. 앉아 있으면 E 키로 일어서요'].map((t) => h('li', {}, t))));
   b.append(h('p', { class: 'muted small' }, '이 월드는 비공식 팬메이드 재현이에요. 사진 속 인물이나 사장님을 특정하지 않으며, 사장님 NPC는 리뷰 언급에 기반한 캐릭터예요. 영업시간·전화번호·현재 가격은 가게에 직접 확인하세요.'));
 }
 
@@ -1613,7 +1684,7 @@ function pickGreeting(o) {
 }
 
 /* ================================================================ 입력 · 카메라 · 이동 */
-const keys = new Set(); let joy = { x: 0, y: 0 };
+const keys = new Set(); let joy = { x: 0, y: 0 }; let joyRefresh = () => {};
 const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
 function pick(ev) {
   const r = renderer.domElement.getBoundingClientRect();
@@ -1636,7 +1707,10 @@ function nearestPropSid(cx, cy) {
   }
   return best;
 }
-function onWorldClick(ev) {
+// 짧고 깨끗한 탭(드래그 없이, 오래 누르지 않고 뗀 경우)인가. 의자·테이블 앉기 창은 이런 탭에서만 뜬다.
+const TAP_MAX_MS = 450;
+const isCleanTap = (d, now) => !!d && !d.moved && now - d.t <= TAP_MAX_MS;
+function onWorldClick(ev, clean = true) {
   if (!S.entered || S.wc) return;
   const hit = pick(ev); if (!hit) return;
   const u = hit.object.userData;
@@ -1646,8 +1720,8 @@ function onWorldClick(ev) {
   if (u.fridge) { useFridge(); return; }
   if (u.projector) { screenToggle(); return; }
   if (u.screen) { openScreenBox(true); return; }
-  if (u.seat) { requestSit(u.seat.table, u.seat.idx); return; }
-  if (u.table) { requestSit(u.table); return; }
+  if (u.seat) { if (clean) requestSit(u.seat.table, u.seat.idx); return; }
+  if (u.table) { if (clean) requestSit(u.table); return; }
   if (u.owner) { ownerClick(); return; }
   if (u.wc) { if (confirm('화장실 다녀올까요?')) goToilet(); return; }
   if (S.trip) return;
@@ -1659,10 +1733,10 @@ function ownerClick() {
   const o = OWNER_LINES; const seq = [o.enter, o.order, o.service, o.care, o.closing];
   ownerSay(seq[ownerIdx++ % seq.length]);
 }
-function bindInput() {
-  const el = renderer.domElement;
+// 포인터 제스처: 드래그는 시점 회전, 두 손가락은 확대/축소, 짧은 탭만 onTap(e, clean) 으로 넘긴다.
+function attachPointerGestures(el, onTap) {
   let drag = null; const ptrs = new Map(); let pinch = 0;
-  el.addEventListener('pointerdown', (e) => { el.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); drag = { x: e.clientX, y: e.clientY, moved: false }; if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
+  el.addEventListener('pointerdown', (e) => { el.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); drag = { x: e.clientX, y: e.clientY, moved: false, t: performance.now() }; if (ptrs.size === 2) { drag.moved = true; const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); } });
   el.addEventListener('pointermove', (e) => {
     if (!ptrs.has(e.pointerId)) return;
     const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -1671,23 +1745,33 @@ function bindInput() {
     if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 5) drag.moved = true;
     if (drag.moved) { orbit.theta -= (e.clientX - prev.x) * 0.006; orbit.phi = clamp(orbit.phi - (e.clientY - prev.y) * 0.005, 0.35, 1.35); }
   });
-  el.addEventListener('pointerup', (e) => { ptrs.delete(e.pointerId); if (drag && !drag.moved && ptrs.size === 0) onWorldClick(e); if (!ptrs.size) drag = null; });
+  el.addEventListener('pointerup', (e) => { ptrs.delete(e.pointerId); if (drag && !drag.moved && ptrs.size === 0) onTap(e, isCleanTap(drag, performance.now())); if (!ptrs.size) drag = null; });
   el.addEventListener('pointercancel', (e) => { ptrs.delete(e.pointerId); drag = null; });
+}
+function bindInput() {
+  const el = renderer.domElement;
+  attachPointerGestures(el, onWorldClick);
   el.addEventListener('wheel', (e) => { e.preventDefault(); orbit.dist = clamp(orbit.dist + e.deltaY * 0.01, 5, 14); }, { passive: false });
   addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !$('#screen-box').hidden) { openScreenBox(false); return; }
     if (e.key === 'Escape' && sitCtx) { closeSitDialog(false); return; }
     if (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase(); keys.add(k);
+    seatMoveHint(k);
     if (k === 'e' && S.entered) { if (T) leaveTable(); else nearestSeat(); }
     if (k === 'escape' && S.trip?.phase === 'choosing') cancelFridge();
   });
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+}
+function initJoystick() { // 3D 가 없어도(WebGL 실패) 조이스틱 DOM 은 준비한다
   // 모바일 조이스틱
   const jb = $('#joy'), knob = $('#joy i');
   const touch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
   document.body.dataset.device = touch ? 'touch' : 'desktop';
-  jb.hidden = !touch;
+  // 좁은 화면(≤820px)에서는 포인터 종류와 관계없이 조이스틱을 보인다(좁은 PC 브라우저 포함)
+  const updateJoy = () => { jb.hidden = !(touch || narrowQ()); updateMoveHint(); };
+  updateJoy(); try { matchMedia('(max-width:820px)').addEventListener?.('change', updateJoy); } catch { /* 무시 */ } window.addEventListener('resize', updateJoy);
+  joyRefresh = updateJoy;
   let jid = null;
   const setJoy = (e) => { const r = jb.getBoundingClientRect(); let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2); const m = Math.hypot(dx, dy), max = 40; if (m > max) { dx = dx / m * max; dy = dy / m * max; } knob.style.transform = `translate(${dx}px,${dy}px)`; joy = { x: dx / max, y: dy / max }; };
   jb.addEventListener('pointerdown', (e) => { jid = e.pointerId; jb.setPointerCapture(jid); setJoy(e); e.stopPropagation(); });
@@ -1695,6 +1779,15 @@ function bindInput() {
   const endJoy = (e) => { if (e.pointerId !== jid) return; jid = null; joy = { x: 0, y: 0 }; knob.style.transform = ''; };
   jb.addEventListener('pointerup', endJoy); jb.addEventListener('pointercancel', endJoy);
 }
+// 앉아 있을 땐 이동 키가 안 먹는 게 정상 — 한 번만 일어서는 방법을 알려준다(앉을 때마다 다시 한 번).
+let seatHinted = false;
+const MOVE_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+function seatMoveHint(k) {
+  if (!S.entered || !S.seated || seatHinted || !MOVE_KEYS.includes(k)) return false;
+  seatHinted = true; toast('앉아 있어서 못 움직여요. 일어서려면 E 키 또는 일어서기 버튼을 눌러요.', 3500); return true;
+}
+function updateMoveHint() { const m = $('#move-hint'); if (m) m.hidden = !S.entered || narrowQ(); }
+const narrowQ = () => !!matchMedia('(max-width:820px)').matches;
 function nearestSeat() {
   let best = null, bd = 1.8;
   for (const t of TABLE_DEFS) t.seats.forEach((s, i) => { const d = Math.hypot(S.pos.x - s.x, S.pos.z - s.z); if (d < bd) { bd = d; best = [t.id, i]; } });
@@ -2011,21 +2104,26 @@ function bindScreenUI() {
 // 3D: 화이트 스크린 + 천장 마운트 빔 프로젝터 + 빛줄기(켜졌을 때만 보임). 스크린 평면에는 CSS3D iframe 이 겹친다.
 function buildScreen() {
   const g = new THREE.Group(); scene.add(g);
-  const cy = SCREEN.top - SCREEN.h / 2;
+  const cy = SCREEN.bottom + SCREEN.h / 2;
   const white = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN.w, SCREEN.h), new THREE.MeshStandardMaterial({ color: 0xf6f6f2, emissive: 0x4a4a46, roughness: 0.9, side: THREE.DoubleSide }));
   white.position.set(SCREEN.cx, cy, SCREEN.z); white.userData.screen = true; pickables.push(white); g.add(white);
-  box(SCREEN.w + 0.12, 0.1, 0.14, std(0x2a2a2a, 0.5), SCREEN.cx, SCREEN.top - 0.05, SCREEN.z, g);       // 천장에 붙은 스크린 케이스
-  box(SCREEN.w, 0.04, 0.05, std(0x222222, 0.5), SCREEN.cx, SCREEN.top - SCREEN.h, SCREEN.z, g);          // 하단 봉
+  const fm = std(0x222222, 0.5), ft = 0.06;                                                                // 스크린 프레임: 벽면 안쪽에 붙은 검정 테두리 4변
+  box(SCREEN.w + 2 * ft, ft, 0.05, fm, SCREEN.cx, SCREEN.top + ft / 2, SCREEN.z, g);
+  box(SCREEN.w + 2 * ft, ft, 0.05, fm, SCREEN.cx, SCREEN.bottom - ft / 2, SCREEN.z, g);
+  box(ft, SCREEN.h, 0.05, fm, SCREEN.cx - SCREEN.w / 2 - ft / 2, cy, SCREEN.z, g);
+  box(ft, SCREEN.h, 0.05, fm, SCREEN.cx + SCREEN.w / 2 + ft / 2, cy, SCREEN.z, g);
   const pj = new THREE.Group(); pj.position.set(PROJECTOR.x, PROJECTOR.y, PROJECTOR.z); g.add(pj);
-  box(0.03, ROOM.h - PROJECTOR.y, 0.03, std(0x333333, 0.5), 0, (ROOM.h - PROJECTOR.y) / 2, 0, pj);       // 천장 마운트 봉
-  box(0.36, 0.13, 0.28, std(0xe8e8e4, 0.5), 0, 0, 0, pj);
-  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 16), new THREE.MeshBasicMaterial({ color: 0x2a2a2a }));
-  lens.rotation.x = Math.PI / 2; lens.position.set(0, 0, 0.16); pj.add(lens); SCR.lens = lens;
+  box(0.045, ROOM.h - PROJECTOR.y, 0.045, std(0x333333, 0.5), 0, (ROOM.h - PROJECTOR.y) / 2, 0, pj);     // 천장 마운트 봉
+  box(0.54, 0.195, 0.42, std(0xe8e8e4, 0.5), 0, 0, 0, pj);                                               // 본체 (v11c 0.36×0.13×0.28 의 1.5배)
+  const dx = SCREEN.cx - PROJECTOR.x, dy = cy - PROJECTOR.y, zz = SCREEN.z - 0.03 - PROJECTOR.z;
+  const tilt = Math.atan2(-dy, zz), LD = 0.24, ly = -Math.sin(tilt) * LD, lz = Math.cos(tilt) * LD;        // 렌즈를 스크린 중심으로 기울임
+  const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.075, 16), new THREE.MeshBasicMaterial({ color: 0x2a2a2a }));
+  lens.rotation.x = Math.PI / 2 + tilt; lens.position.set(0, ly, lz); pj.add(lens); SCR.lens = lens;
   pj.traverse((o) => { if (o.isMesh) { o.userData.projector = true; pickables.push(o); } });
   // 빛줄기: 렌즈 → 스크린 네 모서리 (투명 사각뿔). 클릭을 가로채지 않게 raycast 제외.
-  const zz = SCREEN.z - 0.03 - PROJECTOR.z, hw = SCREEN.w / 2, hh = SCREEN.h / 2, dx = SCREEN.cx - PROJECTOR.x, dy = cy - PROJECTOR.y;
+  const hw = SCREEN.w / 2, hh = SCREEN.h / 2;
   const C = [[dx - hw, dy + hh], [dx + hw, dy + hh], [dx + hw, dy - hh], [dx - hw, dy - hh]];
-  const v = []; for (let i = 0; i < 4; i++) { const a = C[i], b = C[(i + 1) % 4]; v.push(0, 0, 0.19, a[0], a[1], zz, b[0], b[1], zz); }
+  const v = []; for (let i = 0; i < 4; i++) { const a = C[i], b = C[(i + 1) % 4]; v.push(0, ly, lz + 0.04, a[0], a[1], zz, b[0], b[1], zz); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
   const cone = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xfff2c8, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide }));
   cone.raycast = () => {}; pj.add(cone); SCR.cone = cone;
@@ -2039,7 +2137,7 @@ async function initCss3d() {
   $('#stage').insertBefore(d, $('#labels'));
   r.setSize(innerWidth, innerHeight);
   const obj = new CSS3DObject(SCR.frame); obj.element.style.pointerEvents = 'none';
-  obj.scale.setScalar(SCREEN.w / 1280); obj.position.set(SCREEN.cx, SCREEN.top - SCREEN.h / 2, SCREEN.z - 0.01);
+  obj.scale.setScalar(SCREEN.w / 1280); obj.position.set(SCREEN.cx, SCREEN.bottom + SCREEN.h / 2, SCREEN.z - 0.01);
   css.scene = new THREE.Scene(); css.scene.add(obj); css.obj = obj; css.renderer = r;
   renderScreen();
 }
@@ -2132,8 +2230,9 @@ async function selfTest() {
   // 앉기 다이얼로그(로비 없음)
   // 빔 프로젝터 스크린(v11c)
   const scrL = SCREEN.cx - SCREEN.w / 2, scrR = SCREEN.cx + SCREEN.w / 2;
-  ok('스크린: 가로 2.4m × 세로 1.35m(16:9), 상단이 천장에 붙고 하단은 벽 중간 높이까지', SCREEN.w === 2.4 && SCREEN.h === 1.35 && Math.abs(SCREEN.w / SCREEN.h - 16 / 9) < 0.01 && SCREEN.top === ROOM.h && ROOM.h - SCREEN.h > 1.0);
-  ok('스크린이 입구 문(남쪽 벽 왼쪽)·Amado 간판(오른쪽)·벽 경계를 가리지 않음', scrL >= ENTRANCE.x1 && scrR <= SIGN.x - SIGN.r && SIGN.x + SIGN.r <= ROOM.w / 2 && Math.abs(SCREEN.z - ROOM.d / 2) < 0.1);
+  ok('스크린: 가로 3.6m × 세로 2.025m(16:9), 하단이 바닥에서 0.2~0.5m 위, 상단은 천장 아래', SCREEN.w === 3.6 && Math.abs(SCREEN.h - 2.025) < 1e-9 && Math.abs(SCREEN.w / SCREEN.h - 16 / 9) < 0.01 && SCREEN.bottom >= 0.2 && SCREEN.bottom <= 0.5 && Math.abs(SCREEN.top - SCREEN.bottom - SCREEN.h) < 1e-9 && SCREEN.top < ROOM.h);
+  ok('스크린이 입구 문(남쪽 벽 왼쪽)·벽 경계를 가리지 않음: 왼쪽 끝이 입구 문 오른쪽 끝보다 오른쪽', scrL > ENTRANCE.x1 && scrR <= ROOM.w / 2 && Math.abs(SCREEN.z - ROOM.d / 2) < 0.1);
+  ok('Amado 간판: 동쪽 벽(x≈+3.6)에 붙고 원래 크기(반지름 0.7), 눈높이 위·천장 아래, 안내문(z 2.3~3.7)·화장실 문·에어컨과 안 겹침', Math.abs(SIGN.x - ROOM.w / 2) < 0.05 && SIGN.r === 0.7 && SIGN.y - SIGN.r > 1.2 && SIGN.y + SIGN.r <= ROOM.h && SIGN.z - SIGN.r >= -ROOM.d / 2 && (SIGN.z + SIGN.r < 2.3 || SIGN.z - SIGN.r > 3.7) && SIGN.z + SIGN.r < AIRCON.z - AIRCON.w / 2 && SIGN.z - SIGN.r > WC_DOOR.z + 0.45);
   ok('프로젝터: 스크린 앞(방 안쪽) 천장 근처, 스크린 가로 범위 안', PROJECTOR.z < SCREEN.z - 1 && PROJECTOR.y > 2 && PROJECTOR.y < ROOM.h && PROJECTOR.x >= scrL && PROJECTOR.x <= scrR);
   ok('스크린 채널 amado-screen: 접두사·다른 채널과 구분, 이벤트는 테이블·문·디렉토리와 안 겹침', CH.screen === 'amado-screen' && ![...PRIVATE_EVENTS, ...DOOR_EVENTS, ...DIR_EVENTS].some((e) => SCREEN_EVENTS.includes(e)));
   ok('유튜브 ID 추출: watch·youtu.be·shorts·live·embed, 잘못된 URL 은 null', ['https://www.youtube.com/watch?v=aHwTaabiPQc&t=3', 'https://youtu.be/aHwTaabiPQc?si=x', 'https://www.youtube.com/shorts/aHwTaabiPQc', 'https://www.youtube.com/live/aHwTaabiPQc', 'https://www.youtube.com/embed/aHwTaabiPQc'].every((u) => parseYouTubeId(u) === 'aHwTaabiPQc') && ['', 'hello', 'https://example.com/watch?v=aHwTaabiPQc', 'https://www.youtube.com/watch?v=short'].every((u) => parseYouTubeId(u) === null));
@@ -2159,6 +2258,7 @@ async function boot() {
     initCss3d().catch((e) => { console.warn('[amado] CSS3D 스크린 사용 불가', e); showHint(true); });
     requestAnimationFrame(frame);
   } catch (e) { console.error(e); toast('3D를 시작하지 못했어요(WebGL). 패널 기능은 그대로 쓸 수 있어요.', 6000); }
+  initJoystick();
   initScreen(); // 스크린 DOM·패널(3D 가 안 돼도 상태·동기화·패널은 동작)
   placeStaticLabels(); // 3D 가 안 돼도 이름표(클릭 가능)는 만든다
   initSupabase();
@@ -2183,14 +2283,14 @@ async function boot() {
   $('#chat-form').addEventListener('submit', (e) => { e.preventDefault(); const i = $('#chat-input'); sendChat(i.value); i.value = ''; });
   $('#entry-form').addEventListener('submit', (e) => { e.preventDefault(); enter(); });
   // 백그라운드 탭은 requestAnimationFrame 이 멈춰 아바타가 제자리에 서 있게 된다 → 숨겨진 동안엔 1초 틱에서 이동을 직접 진행한다
-  setInterval(() => { tickCooldown(); tickServe(); tickTrip(); if (document.hidden && S.entered) for (let i = 0; i < 20; i++) stepMove(0.05); }, 1000);
+  setInterval(() => { tickCooldown(); tickServe(); tickTrip(); watchTable(); if (document.hidden && S.entered) for (let i = 0; i < 20; i++) stepMove(0.05); }, 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.entered) { trackLobby(true); announceTable(true); } });
   addEventListener('beforeunload', () => {
     clearInterval(S.hungerTimer);
-    try { if (T?.synced && T.members.size <= 1) dirSend('tables-state', { tid: T.id, count: 0, seats: [], locked: false, from: S.me.id }); closeSession(); Net.lobby?.untrack?.(); } catch { /* 무시 */ }
+    try { if (T?.synced && T.members.size <= 1) resetTable(T); closeSession(); Net.lobby?.untrack?.(); } catch { /* 무시 */ }
   });
   window.__amado = { S, CH, selfTest, applyHungerFx, applyDrunkFx, get T() { return T; }, Net, Dir, requestSit, addDrunk, addHunger, order, itemById, leaveTable, sendChat, TABLE_DEFS, lobbyMembers: () => lobbyMembers, enter, openSession, knock, occupants, onDirState, useFridge, deliverDrink, eatServed, drinkServed,
-    FRIDGE, bitesOf, drinkDelta, FOOD_LOOK, menuDot, OWNER_LINES, GREETING, HUNGER_TICK_MS, BOUNDS, COUNTER, FRIDGE_POS, props: () => PROPS, stepMove, tickServe, ownerClick, AIRCON, SPAWN_ROT, WC_DOOR, ENTRANCE, STREET, STUDENTS, studentX, OWNER_POS, SPAWN, ROOM, tableLocked, fridgeRoute, FRIDGE_STAND, FRIDGE_LANE_Z, FRIDGE_ROT, confirmSit, closeSitDialog,
+    FRIDGE, bitesOf, drinkDelta, FOOD_LOOK, menuDot, OWNER_LINES, GREETING, HUNGER_TICK_MS, BOUNDS, COUNTER, FRIDGE_POS, props: () => PROPS, stepMove, tickServe, ownerClick, AIRCON, SPAWN_ROT, WC_DOOR, ENTRANCE, STREET, STUDENTS, studentX, OWNER_POS, SPAWN, ROOM, tableLocked, fridgeRoute, FRIDGE_STAND, FRIDGE_LANE_Z, FRIDGE_ROT, confirmSit, closeSitDialog, isCleanTap, attachPointerGestures, onWorldClick, seatMoveHint, joyRefresh: () => joyRefresh(), TAP_MAX_MS,
     BADGE_GRACE_MS, setOnline, avatarTargetFor, serveLine, SERVE_LINES, recommendFood, soloReact, chatBusy, REC, chatTimes, enterLine, nudgeBubbles, bubbleShift, nearestPropSid, camera, orbit, ORBIT_HOME, camFocus, resetView, CAM_LIM, tickTrip, snapToSeat, baseName, GRID_LEGEND, renderCart, applyServe, REC_GAP_MS,
     SCR, SCREEN, SIGN, PROJECTOR, SCREEN_PROGRAMS, parseYouTubeId, programState, randomProgram, nextAfterEnd, otherProgram, sanitizeScreen, newerScreen, screenCommit, screenToggle, screenNext, screenFromUrl, onScreenMsg, onVideoEnded, onPlayerState, onPlayerError, initialScreen, setSound, SCREEN_EVENTS };
   document.body.dataset.ready = '1';
@@ -2204,7 +2304,7 @@ function enter() {
   if (myAvatar) { scene.remove(myAvatar); myAvatar = makeAvatar(S.me.color); scene.add(myAvatar); }
   setTimeout(() => { if (!SCR.st) initialScreen(); }, 7000); // 1인 모드·연결 실패 대비: 끝내 상태를 못 받으면 내가 정한다
   S.entered = true; S.pos.set(SPAWN.x, 0, SPAWN.z); S.rot = SPAWN_ROT; S.target = null;
-  $('#entry').hidden = true; $('#hud-drunk').hidden = false; $('#hud-actions').hidden = false; $('#btn-sit').hidden = true;
+  $('#entry').hidden = true; $('#hud-drunk').hidden = false; $('#hud-actions').hidden = false; $('#btn-sit').hidden = true; $('#move-hint').hidden = narrowQ();
   // 허기: 입장 시 2에서 시작, 3분마다 +1 (최대 5). 페이지를 떠나면 beforeunload 에서 정리.
   S.hunger = HUNGER_START; S.hungerAlert = 0; clearInterval(S.hungerTimer);
   S.hungerTimer = setInterval(() => addHunger(1), HUNGER_TICK_MS);

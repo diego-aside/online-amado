@@ -148,6 +148,8 @@ body.side-closed #hud-actions{max-width:calc(100% - 24px)}
 #joy{position:fixed;left:18px;bottom:24px;width:110px;height:110px;border-radius:50%;background:#ffffff18;border:2px solid #ffffff44;z-index:6;touch-action:none}
 #joy i{position:absolute;left:35px;top:35px;width:40px;height:40px;border-radius:50%;background:var(--accent);opacity:.85}
 [hidden]{display:none!important}
+#move-hint{position:fixed;left:12px;bottom:4px;z-index:5;font-size:11px;color:#fffa;background:#0006;padding:2px 8px;border-radius:var(--r);pointer-events:none}
+body.zoomed #move-hint{bottom:200px}
 @media (max-width:820px){
   .icon-btn{display:block;background:#000a}
   #side{width:min(92vw,360px);top:48px;bottom:0}
@@ -161,6 +163,13 @@ body.side-closed #hud-actions{max-width:calc(100% - 24px)}
   #hud-drunk{top:48px;min-width:170px}
   #joy{bottom:18px}
   body.zoomed #joy{bottom:182px}
+  /* v11f: 좁은 화면 — 하단 HUD 버튼은 이모지만(글자는 title·aria-label 에 있음), 작게. 터치 영역은 40px 유지 */
+  #hud-actions{gap:4px}
+  #hud-actions .act{min-width:40px;min-height:40px;padding:4px 6px;font-size:18px;line-height:1}
+  #hud-actions .act .t{display:none}
+  #side .item button,#side .line button,#side .top-item button,#side #cart-box button{min-height:40px;padding:4px 8px;font-size:12px}
+  #side #tabs button{padding:6px 2px;font-size:12px}
+  #move-hint{display:none}
 }
 .item .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px;vertical-align:middle;border:1px solid #fff4}
 .top-item.empty{opacity:.6}

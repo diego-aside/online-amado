@@ -32,15 +32,15 @@
 </div>
 
 <div id="hud-actions" hidden>
-  <button id="btn-sit" class="act">🪑 일어서기</button>
-  <button id="btn-cheers" class="act">🍻 건배</button>
-  <button id="btn-water" class="act">💧 물 마시기</button>
-  <button id="btn-wc" class="act">🚽 화장실 다녀오기</button>
-  <button id="btn-cam" class="act" aria-pressed="false">📷 카메라 OFF</button>
-  <button id="btn-mic" class="act" aria-pressed="false">🎤 마이크 OFF</button>
-  <button id="btn-grid" class="act">▦ 격자</button>
-  <button id="btn-screen" class="act" title="빔 프로젝터 스크린 조작">📽️ 스크린</button>
-  <button id="btn-camreset" class="act" title="카메라를 기본 시점으로 되돌려요">🎥 시점 초기화</button>
+  <button id="btn-sit" class="act" title="일어서기" aria-label="일어서기"><span class="e">🪑</span><span class="t"> 일어서기</span></button>
+  <button id="btn-cheers" class="act" title="건배" aria-label="건배"><span class="e">🍻</span><span class="t"> 건배</span></button>
+  <button id="btn-water" class="act" title="물 마시기" aria-label="물 마시기"><span class="e">💧</span><span class="t"> 물 마시기</span></button>
+  <button id="btn-wc" class="act" title="화장실 다녀오기" aria-label="화장실 다녀오기"><span class="e">🚽</span><span class="t"> 화장실 다녀오기</span></button>
+  <button id="btn-cam" class="act" aria-pressed="false" title="카메라 OFF" aria-label="카메라 OFF"><span class="e">📷</span><span class="t"> 카메라 OFF</span></button>
+  <button id="btn-mic" class="act" aria-pressed="false" title="마이크 OFF" aria-label="마이크 OFF"><span class="e">🎤</span><span class="t"> 마이크 OFF</span></button>
+  <button id="btn-grid" class="act" title="격자" aria-label="격자"><span class="e">▦</span><span class="t"> 격자</span></button>
+  <button id="btn-screen" class="act" title="빔 프로젝터 스크린 조작" aria-label="스크린"><span class="e">📽️</span><span class="t"> 스크린</span></button>
+  <button id="btn-camreset" class="act" title="카메라를 기본 시점으로 되돌려요" aria-label="시점 초기화"><span class="e">🎥</span><span class="t"> 시점 초기화</span></button>
 </div>
 
 <section id="zoom" hidden aria-label="테이블 화상 격자">
@@ -104,7 +104,8 @@
   <p class="muted small">방 안 모두가 같은 영상을 봐요. 자동재생은 음소거로 시작해요.</p>
 </div>
 
-<div id="joy" hidden><i></i></div>
+<div id="joy" hidden aria-label="이동 조이스틱"><i></i></div>
+<div id="move-hint" hidden>WASD·방향키로 이동</div>
 <div id="toasts"></div>
 <div id="rainbow-flash"></div>
 
@@ -135,6 +136,7 @@
     <label>닉네임<input id="in-name" maxlength="12" placeholder="비우면 랜덤 별명"></label>
     <label>아마도에 처음 온 이유 <small>(선택)</small><input id="in-why" maxlength="60" placeholder="한 줄로 적어주세요"></label>
     <button class="primary" id="btn-enter">입장하기</button>
+    <p class="muted small">이동: 컴퓨터는 WASD·방향키, 모바일은 왼쪽 아래 조이스틱 · 앉았다 일어서기는 E 키.</p>
     <p class="muted small">서울 동작구 흑석로 10, 1층 2호 · 메뉴·가격은 2026-09 메뉴판 기준이에요. 인터넷이 안 되면 1인 모드로 둘러볼 수 있어요.</p>
   </form>
 </div>
