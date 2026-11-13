@@ -181,7 +181,7 @@ const ENTRANCE = { x0: -3.3, x1: -0.7 };                      // 가까운 쪽(�
 const AIRCON = { x: 3.48, y: 2.45, z: 5.3, w: 1.0, h: 0.3, d: 0.2, collide: false }; // 하단 오른쪽(동쪽) 벽 벽걸이 에어컨
 const SCREEN = { w: 3.6, h: 2.025, cx: 1.3, bottom: 0.3, z: ROOM.d / 2 - 0.06 };   // 남쪽 통유리 벽면 화이트 스크린(16:9): 하단이 바닥에서 0.3m, 입구 문 오른쪽(x>-0.7) 여유 공간 안에서 최대한 크게
 SCREEN.top = SCREEN.bottom + SCREEN.h;                                                 // 상단은 천장에서 떨어진 풀다운 스크린 형태
-const SIGN = { yaw: -Math.PI / 4, y: 2.0, z: 0.5, r: 0.7 };                              // 'Amado' 원형 간판: 동쪽(오른쪽) 긴 벽, 원래 크기(반지름 0.7), 눈높이보다 약간 위. 기본 카메라(남쪽에서 북쪽을 봄)는 동쪽 벽과 시선이 나란해서, 벽에 납작 붙이면(yaw -π/2) 글씨 방향이 화면 안쪽(깊이)으로 향해 대각선으로 솟아 보인다 → 글씨 방향이 화면 가로에 가깝도록 yaw -π/4 로 돌려 카메라 쪽(남서)을 보게 하고, 원 끝이 벽에 닿도록 x 를 안쪽으로 당긴다. 위쪽은 월드 Y 그대로(회전은 Y 축 하나뿐). 서쪽 벽은 술 냉장고 자리
+const SIGN = { yaw: -Math.PI / 2, y: 2.0, z: 0.5, r: 0.7 };                              // 'Amado' 원형 간판: 동쪽(오른쪽) 긴 벽에 납작 붙임(yaw -π/2, 법선 = 방 안쪽 -x), 원래 크기(반지름 0.7), 눈높이보다 약간 위. 같은 벽 종이 안내문(note)도 rotation.y = -π/2 라서 동쪽 벽을 정면으로 보면 수평으로 읽힌다 — 간판도 같은 방향이어야 한다. (v11g 의 -π/4 는 벽과 나란하지 않아, 벽을 정면으로 봐도 글씨 밑변이 45° 대각선이었다.) 기본 카메라(남쪽에서 북쪽)에서 가로로 눌려 보이는 건 벽 자체의 원근법이라 그대로 둔다. 위쪽은 월드 Y 그대로(회전은 Y 축 하나뿐). 서쪽 벽은 술 냉장고 자리
 SIGN.x = ROOM.w / 2 - 0.02 - SIGN.r * Math.abs(Math.cos(SIGN.yaw)); SIGN.ex = SIGN.r * Math.abs(Math.sin(SIGN.yaw)); // ex: 간판이 z 방향으로 차지하는 반폭
 const PROJECTOR = { x: SCREEN.cx, y: 2.65, z: 3.9 };                                  // 스크린 앞 천장 마운트 빔 프로젝터(렌즈가 +z 스크린을 향함), 본체 v11c 의 1.5배
 const BOUNDS = { x0: -3.4, x1: 3.4, z0: -5.7, z1: 6.8 };
@@ -303,7 +303,7 @@ function buildRoom() {
   const sign = new THREE.Mesh(new THREE.CircleGeometry(SIGN.r, 32), new THREE.MeshBasicMaterial({
     map: canvasTex(256, 256, (g, w, hh) => { g.fillStyle = '#1f6a4f'; g.fillRect(0, 0, w, hh); g.fillStyle = '#fff'; g.font = `84px ${SCRIPT_FONT}`; g.textAlign = 'center'; g.fillText('Amado', w / 2, hh / 2 + 26); }),
   }));
-  sign.position.set(SIGN.x, SIGN.y, SIGN.z); sign.rotation.y = SIGN.yaw; scene.add(sign); // 회전은 Y 축만(위쪽=월드 Y). 법선 = (sin yaw, 0, cos yaw) = 방 안쪽·남쪽을 향함
+  sign.position.set(SIGN.x, SIGN.y, SIGN.z); sign.rotation.y = SIGN.yaw; scene.add(sign); // 회전은 Y 축만(위쪽=월드 Y). 법선 = (sin yaw, 0, cos yaw) = (-1, 0, 0) = 방 안쪽, 안내문(note)과 같은 회전
   const banner = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 1), new THREE.MeshBasicMaterial({
     transparent: true, map: canvasTex(512, 160, (g, w, hh) => { g.fillStyle = '#fff'; g.font = `120px ${SCRIPT_FONT}`; g.textAlign = 'center'; g.fillText('Amado', w / 2, hh / 2 + 40); }),
   }));
