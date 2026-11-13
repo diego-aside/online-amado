@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>온라인 아마도 — Amado</title>
 <link rel="stylesheet" href="./style.css">
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
@@ -27,6 +27,7 @@
   <div class="dr-bar emo" id="dr-bar" role="img" aria-label="취기 게이지"><i>🍶</i><i>🍶</i><i>🍶</i><i>🍶</i><i>🍶</i></div>
   <div class="hg-title">허기 <span id="hg-text">슬슬 배고파요</span></div>
   <div class="hg-bar emo" id="hg-bar" role="img" aria-label="허기 게이지"><i>🍖</i><i>🍖</i><i>🍖</i><i>🍖</i><i>🍖</i></div>
+  <div class="hg-hint">배고플수록 많이 켜져요 (켜진 🍖 = 배고픔)</div>
   <div id="dr-cool" hidden></div>
 </div>
 
@@ -38,6 +39,8 @@
   <button id="btn-cam" class="act" aria-pressed="false">📷 카메라 OFF</button>
   <button id="btn-mic" class="act" aria-pressed="false">🎤 마이크 OFF</button>
   <button id="btn-grid" class="act">▦ 격자</button>
+  <button id="btn-screen" class="act" title="빔 프로젝터 스크린 조작">📽️ 스크린</button>
+  <button id="btn-camreset" class="act" title="카메라를 기본 시점으로 되돌려요">🎥 시점 초기화</button>
 </div>
 
 <section id="zoom" hidden aria-label="테이블 화상 격자">
@@ -86,6 +89,21 @@
   </div>
 </div>
 
+<div id="screen-box" hidden>
+  <div class="sc-head"><b>📽️ 빔 프로젝터 스크린</b><button id="sc-close" aria-label="닫기">✕</button></div>
+  <p id="sc-now" class="muted small"></p>
+  <div class="row sc-btns">
+    <button id="sc-power" aria-pressed="true">⏻ 프로젝터 끄기</button>
+    <button id="sc-sound" aria-pressed="false">🔇 소리 켜기</button>
+    <button id="sc-next">🔀 다른 영상</button>
+  </div>
+  <form id="sc-form" class="row" autocomplete="off">
+    <input id="sc-url" placeholder="유튜브 링크를 붙여넣어 영상을 틀어요">
+    <button class="primary">재생</button>
+  </form>
+  <p class="muted small">방 안 모두가 같은 영상을 봐요. 자동재생은 음소거로 시작해요.</p>
+</div>
+
 <div id="joy" hidden><i></i></div>
 <div id="toasts"></div>
 <div id="rainbow-flash"></div>
@@ -103,7 +121,7 @@
   <form id="sit-form" class="modal-box" autocomplete="off">
     <h3 id="sit-title"></h3>
     <p id="sit-info" class="muted"></p>
-    <label id="sit-pw-row">비밀번호 <input id="sit-pw" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="● ● ● ●" autocomplete="off"></label>
+    <label id="sit-pw-row">비밀번호 <input id="sit-pw" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" autocomplete="off"></label>
     <p id="sit-hint" class="muted small"></p>
     <p id="sit-err" class="err"></p>
     <div class="row"><button type="button" id="sit-close">닫기</button><button class="primary" id="sit-ok">앉기</button></div>
