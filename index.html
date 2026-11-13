@@ -19,12 +19,14 @@
 <header id="top">
   <div class="brand"><span class="logo">Amado</span><small>온라인 아마도 · 중앙대 후문 요리주점</small></div>
   <span id="net-badge" class="badge">연결 전</span>
-  <button id="btn-side" class="icon-btn" aria-label="패널 열기">☰</button>
+  <button id="btn-side" class="icon-btn" aria-label="패널 열기" hidden>☰</button>
 </header>
 
 <div id="hud-drunk" hidden>
-  <div class="dr-title">취기 <b id="dr-level">0</b>/5 <span id="dr-text">아직 멀쩡해요</span></div>
-  <div class="dr-bar"><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="dr-title">취기 <span id="dr-text">아직 멀쩡해요</span></div>
+  <div class="dr-bar emo" id="dr-bar" role="img" aria-label="취기 게이지"><i>🍶</i><i>🍶</i><i>🍶</i><i>🍶</i><i>🍶</i></div>
+  <div class="hg-title">허기 <span id="hg-text">슬슬 배고파요</span></div>
+  <div class="hg-bar emo" id="hg-bar" role="img" aria-label="허기 게이지"><i>🍖</i><i>🍖</i><i>🍖</i><i>🍖</i><i>🍖</i></div>
   <div id="dr-cool" hidden></div>
 </div>
 
@@ -43,28 +45,15 @@
   <div id="zoom-note"></div>
 </section>
 
-<aside id="side" class="open">
+<button id="side-pill" hidden aria-label="패널 펼치기">☰ 메뉴</button>
+
+<aside id="side">
+  <div id="side-head"><b>🍽️ 테이블 패널</b><button id="btn-min" class="mini" aria-label="패널 최소화" title="최소화">—</button></div>
   <nav id="tabs">
-    <button data-tab="lobby" class="on">로비</button>
     <button data-tab="menu">메뉴판</button>
-    <button data-tab="scn">시나리오</button>
-    <button data-tab="chat">채팅<em id="chat-unread" hidden>0</em></button>
+    <button data-tab="chat" class="on">채팅<em id="chat-unread" hidden>0</em></button>
     <button data-tab="info">가게 정보</button>
   </nav>
-  <div id="pane-lobby" class="pane on">
-    <h3>로비 — 테이블 6개 (각 4석)</h3>
-    <div id="lobby-people" class="muted"></div>
-    <div id="table-list"></div>
-    <div class="box">
-      <b>새 테이블 만들기 (코드 설정)</b>
-      <div class="row">
-        <select id="new-table"></select>
-        <input id="new-code" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="4자리 숫자 코드" autocomplete="off">
-        <button id="btn-create" class="primary">만들기</button>
-      </div>
-      <small class="muted">빈 테이블만 만들 수 있어요. 만든 코드는 같은 테이블 사람에게 직접 알려주세요.</small>
-    </div>
-  </div>
   <div id="pane-menu" class="pane">
     <div class="disc">⚠ 2026-09 메뉴판 기준, 변동 가능</div>
     <div id="menu-cats" class="chips"></div>
@@ -76,15 +65,26 @@
       <div class="row"><button id="btn-treat-all">🎁 내가 전부 쏜다</button></div>
     </div>
   </div>
-  <div id="pane-scn" class="pane">
-    <div id="scn-body"></div>
-  </div>
-  <div id="pane-chat" class="pane">
+  <div id="pane-chat" class="pane on">
+    <div id="tabletop"><h3>🍽️ 테이블 위</h3><div id="tabletop-list"></div></div>
     <div id="chat-log" aria-live="polite"></div>
     <form id="chat-form" autocomplete="off"><input id="chat-input" maxlength="200" placeholder="테이블 사람들에게만 보여요"><button class="primary">전송</button></form>
   </div>
   <div id="pane-info" class="pane"><div id="info-body"></div></div>
 </aside>
+
+<div id="greet" hidden>
+  <div class="gr-head"><span id="gr-text"></span><button id="gr-x" aria-label="닫기">✕</button></div>
+  <div id="gr-opts"></div>
+</div>
+
+<div id="fridge" hidden>
+  <div class="fr-box">
+    <div class="fr-head"><b>🧊 술 냉장고</b><button id="fr-close" aria-label="닫기">✕</button></div>
+    <p class="muted small">하나 고르면 자리로 가져가요. 계산은 나중에 한 번에.</p>
+    <div id="fr-list"></div>
+  </div>
+</div>
 
 <div id="joy" hidden><i></i></div>
 <div id="toasts"></div>
@@ -99,13 +99,14 @@
   </div>
 </div>
 
-<div id="modal" hidden>
-  <form id="modal-form" class="modal-box" autocomplete="off">
-    <h3 id="modal-title"></h3>
-    <p id="modal-desc" class="muted"></p>
-    <input id="modal-code" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="●●●●" autocomplete="off">
-    <p id="modal-err" class="err"></p>
-    <div class="row"><button type="button" id="modal-cancel">취소</button><button class="primary" id="modal-ok">확인</button></div>
+<div id="sit-dialog" hidden>
+  <form id="sit-form" class="modal-box" autocomplete="off">
+    <h3 id="sit-title"></h3>
+    <p id="sit-info" class="muted"></p>
+    <label id="sit-pw-row">비밀번호 <input id="sit-pw" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="● ● ● ●" autocomplete="off"></label>
+    <p id="sit-hint" class="muted small"></p>
+    <p id="sit-err" class="err"></p>
+    <div class="row"><button type="button" id="sit-close">닫기</button><button class="primary" id="sit-ok">앉기</button></div>
   </form>
 </div>
 
